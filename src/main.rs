@@ -22,7 +22,7 @@ async fn main() -> std::io::Result<()> {
             .service(web::resource("/ws").route(web::get().to(ws_index)))
     })
         // start http server on 127.0.0.1:8080
-        .bind("127.0.0.1:8778")?
+        .bind("0.0.0.0:8778")?
         .run()
         .await
 }

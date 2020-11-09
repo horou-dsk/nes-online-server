@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use rand::rngs::ThreadRng;
 use rand::Rng;
 use actix::prelude::*;
-use crate::proto::{SendParcel, GameReady};
+use crate::proto::{SendParcel};
 
 /// Chat server sends this messages to session
 #[derive(Message)]
@@ -55,6 +55,9 @@ impl OnLineServer {
     }
 
     fn send_reply(&self, message: &str, rep_id: usize) {
+        // self.sessions.iter().for_each(|(v)| {
+        //     println!("{:?}", v);
+        // });
         if let Some(addr) = self.sessions.get(&rep_id) {
             let _ = addr.do_send(Message(message.to_owned()));
         }
@@ -75,7 +78,7 @@ impl Handler<Connect> for OnLineServer {
         // self.send_message(&"Main".to_owned(), "Someone joined", 0);
 
         // register session with random id
-        let id = self.rng.gen::<usize>();
+        let id = self.rng.gen::<u32>() as usize;
         self.sessions.insert(id, msg.addr);
 
         // auto join session to Main room

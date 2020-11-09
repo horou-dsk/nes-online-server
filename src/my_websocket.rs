@@ -6,8 +6,10 @@ use crate::online_server as server;
 use log::{info};
 use serde_json::Value;
 use crate::online_server::{ClientMessage, RoomMessage, SingleMessage};
-use crate::proto::{SendParcel, GameReady};
-use chrono::offset::LocalResult::Single;
+use crate::proto::{SendParcel};
+use actix_web_actors::ws::WebsocketContext;
+use actix_http::ws::Codec;
+use crate::recv_proto::ControllerIns;
 
 /// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
@@ -88,7 +90,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
             Ok(msg) => msg,
         };
 
-        println!("WEBSOCKET MESSAGE: {:?}", msg);
+        // println!("WEBSOCKET MESSAGE: {:?}", msg);
+        // let elapsed = Instant::now();
         match msg {
             ws::Message::Ping(msg) => {
                 self.hb = Instant::now();
@@ -106,27 +109,54 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
                             room: self.room.clone(),
                         });
                     }
-                    Some(6) => {
-
-                    }
                     Some(4) => {
+                        self.addr.do_send(ClientMessage {
+                            id: 0,
+                            room: self.room.clone(),
+                            msg: serde_json::to_string(&SendParcel::GameStart(self.id)).unwrap(),
+                        })
+                        // self.addr.do_send(ClientMessage {
+                        //     id: self.id,
+                        //     room: self.room.clone(),
+                        //     msg: serde_json::to_string(&SendParcel::GetGameStatus(self.id)).unwrap(),
+                        // })
+                    }
+                    // 获取游戏进度
+                    Some(5) => {
+                        self.addr.do_send(SingleMessage {
+                            id: v["id"].as_u64().unwrap() as usize,
+                            msg: serde_json::to_string(&SendParcel::SendGameStatus(v["json_data"].to_string())).unwrap()
+                        })
+                    }
+                    // 进度加载完毕
+                    Some(6) => {
                         self.addr.do_send(ClientMessage {
                             id: self.id,
                             room: self.room.clone(),
-                            msg: serde_json::to_string(&SendParcel::GetGameStatus(self.id as u8)).unwrap(),
+                            msg: serde_json::to_string(&SendParcel::GameStart(self.id)).unwrap(),
                         })
                     }
-                    Some(5) => {
-                        // self.addr.do_send(SingleMessage {
-                        //     id: v[""]
-                        // })
+                    Some(10) => {
+                        let b = serde_json::from_value::<ControllerIns>(v).unwrap();
+                        self.addr.do_send(ClientMessage {
+                            id: self.id,
+                            room: self.room.clone(),
+                            msg: serde_json::to_string(&SendParcel::SendKeyboard(b.keys)).unwrap(),
+                        })
                     }
                     _ => {
                         info!("无效消息");
                     }
                 }
             }
-            ws::Message::Binary(_) => println!("Unexpected binary"),
+            ws::Message::Binary(bytes) => {
+                // let v = bytes.to_vec();
+                // self.addr.do_send(ClientMessage {
+                //     id: self.id,
+                //     room: self.room.clone(),
+                //     msg: serde_json::to_string(&SendParcel::SendKeyboard(v)).unwrap(),
+                // })
+            },
             ws::Message::Close(reason) => {
                 ctx.close(reason);
                 ctx.stop();
@@ -136,6 +166,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
             }
             ws::Message::Nop => (),
         }
+        // println!("{:?}", elapsed.elapsed())
     }
 }
 
@@ -166,12 +197,14 @@ impl MyWebSocket {
 /// do websocket handshake and start `MyWebSocket` actor
 pub async fn ws_index(r: HttpRequest, stream: web::Payload, srv: web::Data<Addr<server::OnLineServer>>) -> Result<HttpResponse, Error> {
     info!("新连接·····");
-    let res = ws::start(MyWebSocket {
+    let mut res = ws::handshake(&r)?;
+    Ok(res.streaming(WebsocketContext::with_codec(MyWebSocket {
         id: 0,
         hb: Instant::now(),
         room: "Main".to_owned(),
         name: None,
         addr: srv.get_ref().clone(),
-    }, &r, stream);
-    res
+    }, stream, Codec::new().max_size(1024 * 1024 * 6))))
+    // let res = ws::start(, &r, stream);
+    // res
 }

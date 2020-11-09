@@ -717,6 +717,7 @@ version = "0.1.0"
 dependencies = [
  "actix",
  "actix-files",
+ "actix-http 2.0.0",
  "actix-multipart",
  "actix-rt",
  "actix-web 3.1.0",
