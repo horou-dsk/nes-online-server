@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<input type="text" id="message">
+<button id="submit">发送</button>
+</body>
+<script>var ws = new WebSocket('ws://127.0.0.1:8080');
+document.querySelector('#submit').addEventListener('click', function () {
+  ws.send(document.querySelector('#message').value);
+});
+ws.addEventListener('open', function () {
+  console.log('连接成功');
+});
+ws.addEventListener('message', function (e) {
+  console.log(e.data);
+});
+ws.addEventListener('close', function () {
+  console.log('断开连接');
+});</script>
+</html>
