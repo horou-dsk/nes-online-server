@@ -3,6 +3,7 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 use actix::prelude::*;
 use crate::proto::{SendParcel};
+use crate::room::Room;
 
 /// Chat server sends this messages to session
 #[derive(Message)]
@@ -26,6 +27,7 @@ pub struct Disconnect {
 pub struct OnLineServer {
     rooms: HashMap<String, HashSet<usize>>, // 房间列表
     sessions: HashMap<usize, Recipient<Message>>, // 房间长连接
+    game_rooms: HashMap<String, Room>,
     rng: ThreadRng,
 }
 
@@ -33,8 +35,11 @@ impl Default for OnLineServer {
     fn default() -> Self {
         let mut rooms = HashMap::new();
         rooms.insert("Main".to_owned(), HashSet::new());
+        let mut game_rooms = HashMap::new();
+        game_rooms.insert("Main".to_owned(), Room::new());
         Self {
             rooms,
+            game_rooms,
             sessions: HashMap::new(),
             rng: rand::thread_rng(),
         }

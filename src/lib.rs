@@ -4,3 +4,4 @@ pub mod controller;
 pub mod my_websocket;
 pub mod proto;
 pub mod recv_proto;
+pub mod room;
