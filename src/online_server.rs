@@ -3,7 +3,7 @@ use rand::rngs::ThreadRng;
 use rand::Rng;
 use actix::prelude::*;
 use crate::proto::{SendParcel};
-use crate::room::Room;
+use crate::room::{self, Room};
 
 /// Chat server sends this messages to session
 #[derive(Message)]
@@ -27,16 +27,16 @@ pub struct Disconnect {
 pub struct OnLineServer {
     rooms: HashMap<String, HashSet<usize>>, // 房间列表
     sessions: HashMap<usize, Recipient<Message>>, // 房间长连接
-    game_rooms: HashMap<String, Room>,
+    game_rooms: HashMap<String, Addr<Room>>,
     rng: ThreadRng,
 }
 
 impl Default for OnLineServer {
     fn default() -> Self {
         let mut rooms = HashMap::new();
-        rooms.insert("Main".to_owned(), HashSet::new());
+        let room_name = "Main".to_owned();
+        rooms.insert(room_name, HashSet::new());
         let mut game_rooms = HashMap::new();
-        game_rooms.insert("Main".to_owned(), Room::new());
         Self {
             rooms,
             game_rooms,
@@ -76,7 +76,7 @@ impl Actor for OnLineServer {
 impl Handler<Connect> for OnLineServer {
     type Result = usize;
 
-    fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
+    fn handle(&mut self, msg: Connect, ctx: &mut Context<Self>) -> Self::Result {
         println!("Connect Handler 连接建立");
 
         // notify all users in same room
@@ -92,6 +92,9 @@ impl Handler<Connect> for OnLineServer {
             .or_insert(HashSet::new())
             .insert(id);
 
+        self.game_rooms
+            .entry("Main".to_owned())
+            .or_insert(Room::new("Main".to_owned(), ctx.address()).start());
         // send id back
         id
     }
@@ -117,6 +120,12 @@ impl Handler<Disconnect> for OnLineServer {
 
         for room in rooms {
             self.send_message(&room, "Someone disconnect", 0);
+        }
+
+        if self.sessions.len() == 0 {
+            for (_, game_room) in self.game_rooms.iter() {
+                game_room.do_send(room::RoomStop);
+            }
         }
 
     }
@@ -175,4 +184,36 @@ impl Handler<SingleMessage> for OnLineServer {
     fn handle(&mut self, msg: SingleMessage, _: &mut Context<Self>) {
         self.send_reply(msg.msg.as_str(), msg.id);
     }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct AddKeyBuffer {
+    pub room: String,
+    pub buffer: Vec<u8>,
+}
+
+impl Handler<AddKeyBuffer> for OnLineServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: AddKeyBuffer, _: &mut Context<Self>) {
+        if let Some(room) = self.game_rooms.get_mut(&msg.room) {
+            room.do_send(room::PushBuffer(msg.buffer));
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct GameStart(pub String);
+
+impl Handler<GameStart> for OnLineServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: GameStart, _: &mut Context<Self>) {
+        if let Some(room) = self.game_rooms.get(&msg.0) {
+            room.do_send(room::RoomStart);
+        }
+    }
+
 }

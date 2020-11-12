@@ -5,7 +5,7 @@ use actix_web::{HttpRequest, web, HttpResponse, Error};
 use crate::online_server as server;
 use log::{info};
 use serde_json::Value;
-use crate::online_server::{ClientMessage, RoomMessage, SingleMessage};
+use crate::online_server::{ClientMessage, RoomMessage, SingleMessage, AddKeyBuffer};
 use crate::proto::{SendParcel};
 use actix_web_actors::ws::WebsocketContext;
 use actix_http::ws::Codec;
@@ -57,7 +57,7 @@ impl Actor for MyWebSocket {
                 fut::ready(())
             })
             .wait(ctx);
-        println!("阻塞了吗？");
+        // println!("阻塞了吗？");
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
@@ -114,7 +114,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
                             id: 0,
                             room: self.room.clone(),
                             msg: serde_json::to_string(&SendParcel::GameStart(self.id)).unwrap(),
-                        })
+                        });
+                        self.addr.do_send(server::GameStart(self.room.clone()));
                         // self.addr.do_send(ClientMessage {
                         //     id: self.id,
                         //     room: self.room.clone(),
@@ -136,13 +137,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
                             msg: serde_json::to_string(&SendParcel::GameStart(self.id)).unwrap(),
                         })
                     }
+                    // 指令转发
                     Some(10) => {
                         let b = serde_json::from_value::<ControllerIns>(v).unwrap();
-                        self.addr.do_send(ClientMessage {
-                            id: self.id,
+                        self.addr.do_send(AddKeyBuffer {
                             room: self.room.clone(),
-                            msg: serde_json::to_string(&SendParcel::SendKeyboard(b.keys)).unwrap(),
-                        })
+                            buffer: b.keys,
+                        });
+                        // self.addr.do_send(ClientMessage {
+                        //     id: self.id,
+                        //     room: self.room.clone(),
+                        //     msg: serde_json::to_string(&SendParcel::SendKeyboard(b.keys)).unwrap(),
+                        // })
                     }
                     _ => {
                         info!("无效消息");
