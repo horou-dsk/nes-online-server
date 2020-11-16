@@ -217,3 +217,17 @@ impl Handler<GameStart> for OnLineServer {
     }
 
 }
+
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct GameStop(pub String);
+
+impl Handler<GameStop> for OnLineServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: GameStop, _: &mut Context<Self>) {
+        if let Some(room) = self.game_rooms.get(&msg.0) {
+            room.do_send(room::RoomStop);
+        }
+    }
+}

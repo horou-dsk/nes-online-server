@@ -150,6 +150,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWebSocket {
                         //     msg: serde_json::to_string(&SendParcel::SendKeyboard(b.keys)).unwrap(),
                         // })
                     }
+                    // 游戏结束
+                    Some(7) => {
+                        self.addr.do_send(server::GameStop(self.room.clone()));
+                    }
                     _ => {
                         info!("无效消息");
                     }
